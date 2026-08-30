@@ -86,7 +86,7 @@ def register_apo_device(guid):
 
 def dep_status():
     """Returns dict of dependency name → (ok: bool, label: str)."""
-    apo_ok = os.path.isdir(APO_DIR)
+    apo_ok = os.path.exists(os.path.join(APO_DIR, "Equalizer APO.exe"))
     reacomp_ok = os.path.exists(
         r"C:\Program Files\VSTPlugins\ReaPlugs\reacomp-standalone.dll")
     reaxcomp_ok = os.path.exists(
