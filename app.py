@@ -86,7 +86,7 @@ def register_apo_device(guid):
 
 def dep_status():
     """Returns dict of dependency name → (ok: bool, label: str)."""
-    apo_ok = os.path.exists(os.path.join(APO_DIR, "Equalizer APO.exe"))
+    apo_ok = os.path.exists(os.path.join(APO_DIR, "EqualizerAPO.dll"))
     reacomp_ok = os.path.exists(
         r"C:\Program Files\VSTPlugins\ReaPlugs\reacomp-standalone.dll")
     reaxcomp_ok = os.path.exists(
@@ -143,9 +143,12 @@ def show_setup_window(on_done):
             ctk.CTkLabel(row, text=f"{icon} {name}",
                          font=ctk.CTkFont(size=13), text_color=color).pack(side="left")
 
+        def log(txt):
+            setup.after(0, lambda: log_label.configure(text=txt))
+
         if not deps["Equalizer APO"]:
             def install_apo():
-                log_label.configure(text="⬇ Descargando Equalizer APO (12 MB)...")
+                log("⬇ Descargando Equalizer APO (12 MB)...")
                 btn_continue.configure(state="disabled")
 
                 def _run():
@@ -154,44 +157,43 @@ def show_setup_window(on_done):
                         def _progress(count, block, total):
                             if total > 0:
                                 pct = min(100, count * block * 100 // total)
-                                log_label.configure(text=f"⬇ Descargando Equalizer APO... {pct}%")
+                                log(f"⬇ Descargando Equalizer APO... {pct}%")
                         urllib.request.urlretrieve(APO_URL, tmp, reporthook=_progress)
-                        log_label.configure(text="🔧 Instalando... acepta el UAC si aparece.")
+                        log("🔧 Instalando... acepta el UAC si aparece.")
                         import ctypes, time
                         ctypes.windll.shell32.ShellExecuteW(
                             None, "runas", tmp, "/S", None, 1)
-                        time.sleep(12)
-                        log_label.configure(text="✅ Equalizer APO instalado.")
+                        time.sleep(15)
+                        log("✅ Equalizer APO instalado.")
                     except Exception as e:
-                        log_label.configure(text=f"❌ Error: {e}")
-                    refresh()
+                        log(f"❌ Error: {e}")
+                    setup.after(0, refresh)
                 threading.Thread(target=_run, daemon=True).start()
             ctk.CTkButton(btn_frame, text="⬇ Instalar Equalizer APO automáticamente",
                           command=install_apo, fg_color="#1a5c8a").pack(fill="x", pady=3)
 
         if not deps["ReaPlugs (ReaComp)"] or not deps["ReaPlugs (ReaXcomp)"]:
             def install_reaplugs():
-                log_label.configure(text="⬇ Descargando ReaPlugs...")
+                log("⬇ Descargando ReaPlugs...")
                 btn_continue.configure(state="disabled")
 
                 def _run():
-                    tmp = os.path.join(tempfile.gettempdir(),
-                                       "reaplugs_install.exe")
+                    tmp = os.path.join(tempfile.gettempdir(), "reaplugs_install.exe")
                     try:
                         def _progress(count, block, total):
                             if total > 0:
                                 pct = min(100, count * block * 100 // total)
-                                log_label.configure(text=f"⬇ Descargando ReaPlugs... {pct}%")
+                                log(f"⬇ Descargando ReaPlugs... {pct}%")
                         urllib.request.urlretrieve(REAPLUGS_URL, tmp, reporthook=_progress)
-                        log_label.configure(text="🔧 Instalando ReaPlugs... sigue los pasos.")
+                        log("🔧 Instalando ReaPlugs... sigue los pasos.")
                         import ctypes, time
                         ctypes.windll.shell32.ShellExecuteW(
                             None, "runas", tmp, None, None, 1)
                         time.sleep(10)
-                        log_label.configure(text="✅ ReaPlugs instalado.")
+                        log("✅ ReaPlugs instalado.")
                     except Exception as e:
-                        log_label.configure(text=f"❌ Error: {e}")
-                    refresh()
+                        log(f"❌ Error: {e}")
+                    setup.after(0, refresh)
                 threading.Thread(target=_run, daemon=True).start()
             ctk.CTkButton(btn_frame, text="⬇ Instalar ReaPlugs automáticamente",
                           command=install_reaplugs, fg_color="#1a6b3a").pack(fill="x", pady=3)
