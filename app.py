@@ -102,7 +102,7 @@ def show_setup_window(on_done):
     """Show dependency checker window. Calls on_done() when all deps OK."""
     setup = ctk.CTkToplevel()
     setup.title("AudioTweaker — Configuración inicial")
-    setup.geometry("480x520")
+    setup.geometry("480x600")
     setup.resizable(False, False)
     setup.grab_set()
 
