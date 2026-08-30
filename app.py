@@ -153,7 +153,10 @@ def show_setup_window(on_done):
                     try:
                         urllib.request.urlretrieve(APO_URL, tmp)
                         log_label.configure(text="🔧 Instalando Equalizer APO en silencio...")
-                        subprocess.run([tmp, "/S"], check=True)
+                        import ctypes
+                        ctypes.windll.shell32.ShellExecuteW(
+                            None, "runas", tmp, "/S", None, 1)
+                        import time; time.sleep(10)
                         log_label.configure(text="✅ Equalizer APO instalado.")
                     except Exception as e:
                         log_label.configure(text=f"❌ Error: {e}")
@@ -174,7 +177,10 @@ def show_setup_window(on_done):
                         urllib.request.urlretrieve(REAPLUGS_URL, tmp)
                         log_label.configure(
                             text="🔧 Instalando ReaPlugs... Acepta el instalador.")
-                        subprocess.run([tmp], check=True)
+                        import ctypes
+                        ctypes.windll.shell32.ShellExecuteW(
+                            None, "runas", tmp, None, None, 1)
+                        import time; time.sleep(8)
                         log_label.configure(text="✅ ReaPlugs instalado.")
                     except Exception as e:
                         log_label.configure(text=f"❌ Error: {e}")
