@@ -151,12 +151,16 @@ def show_setup_window(on_done):
                 def _run():
                     tmp = os.path.join(tempfile.gettempdir(), "EqualizerAPO_setup.exe")
                     try:
-                        urllib.request.urlretrieve(APO_URL, tmp)
-                        log_label.configure(text="🔧 Instalando Equalizer APO en silencio...")
-                        import ctypes
+                        def _progress(count, block, total):
+                            if total > 0:
+                                pct = min(100, count * block * 100 // total)
+                                log_label.configure(text=f"⬇ Descargando Equalizer APO... {pct}%")
+                        urllib.request.urlretrieve(APO_URL, tmp, reporthook=_progress)
+                        log_label.configure(text="🔧 Instalando... acepta el UAC si aparece.")
+                        import ctypes, time
                         ctypes.windll.shell32.ShellExecuteW(
                             None, "runas", tmp, "/S", None, 1)
-                        import time; time.sleep(10)
+                        time.sleep(12)
                         log_label.configure(text="✅ Equalizer APO instalado.")
                     except Exception as e:
                         log_label.configure(text=f"❌ Error: {e}")
@@ -174,13 +178,16 @@ def show_setup_window(on_done):
                     tmp = os.path.join(tempfile.gettempdir(),
                                        "reaplugs_install.exe")
                     try:
-                        urllib.request.urlretrieve(REAPLUGS_URL, tmp)
-                        log_label.configure(
-                            text="🔧 Instalando ReaPlugs... Acepta el instalador.")
-                        import ctypes
+                        def _progress(count, block, total):
+                            if total > 0:
+                                pct = min(100, count * block * 100 // total)
+                                log_label.configure(text=f"⬇ Descargando ReaPlugs... {pct}%")
+                        urllib.request.urlretrieve(REAPLUGS_URL, tmp, reporthook=_progress)
+                        log_label.configure(text="🔧 Instalando ReaPlugs... sigue los pasos.")
+                        import ctypes, time
                         ctypes.windll.shell32.ShellExecuteW(
                             None, "runas", tmp, None, None, 1)
-                        import time; time.sleep(8)
+                        time.sleep(10)
                         log_label.configure(text="✅ ReaPlugs instalado.")
                     except Exception as e:
                         log_label.configure(text=f"❌ Error: {e}")
