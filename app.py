@@ -18,9 +18,13 @@ APO_DIR = r"C:\Program Files\EqualizerAPO"
 APO_CONFIG = r"C:\Program Files\EqualizerAPO\config\config.txt"
 REAPLUGS_URL = "https://www.reaper.fm/reaplugs/reaplugs236_x64-install.exe"
 APO_URL = "https://github.com/Jeison-RV/AudioTweaker/releases/download/v1.0.0/EqualizerAPO-x64-1.4.2.exe"
+VOICEMEETER_URL = "https://vb-audio.com/Voicemeeter/"
+VOICEMEETER_EXE = r"C:\Program Files (x86)\VB\Voicemeeter\voicemeeter.exe"
+VBCABLE_URL = "https://vb-audio.com/Cable/"
 
 # APO registry automation
 _MMDEVICES_RENDER = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render"
+_MMDEVICES_CAPTURE = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture"
 _NAME_PROP = "{a45c254e-df1c-4efd-8020-67d146a850e0},2"
 _APO_PROP_KEY = "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d}"
 _APO_LFX_CLSID = "{EACD2258-FCAC-4FF4-B36D-419E924A6D79}"
@@ -33,6 +37,7 @@ DEVICE_SEARCH_KEYWORDS = {
     "Sony WH-1000XM4": ["WH-1000XM4", "Sony"],
     "SteelSeries Arctis 7": ["Arctis"],
     "Razer BlackShark V2": ["BlackShark"],
+    "AT Gaming": ["AT Gaming", "CABLE Input"],
 }
 
 
@@ -84,132 +89,346 @@ def register_apo_device(guid):
     key.Close()
 
 
+def deregister_apo_device(guid):
+    """Remove Equalizer APO CLSIDs from FxProperties for endpoint guid."""
+    path = _MMDEVICES_RENDER + "\\" + guid + "\\FxProperties"
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path, 0, winreg.KEY_SET_VALUE)
+        for suffix in (",1", ",2"):
+            try:
+                winreg.DeleteValue(key, f"{_APO_PROP_KEY}{suffix}")
+            except OSError:
+                pass
+        key.Close()
+    except OSError:
+        pass
+
+
+def list_capture_devices():
+    result = []
+    try:
+        base = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _MMDEVICES_CAPTURE, 0, winreg.KEY_READ)
+    except OSError:
+        return result
+    i = 0
+    while True:
+        try:
+            guid = winreg.EnumKey(base, i); i += 1
+        except OSError:
+            break
+        try:
+            props = winreg.OpenKey(base, guid + r"\Properties")
+            name, _ = winreg.QueryValueEx(props, _NAME_PROP)
+            props.Close()
+            if name:
+                result.append((str(name), guid))
+        except OSError:
+            pass
+    base.Close()
+    return result
+
+
+def vbcable_detected():
+    keywords = ["CABLE", "AT Gaming", "AT Clean"]
+    for name, _ in list_render_devices() + list_capture_devices():
+        if any(k.lower() in name.lower() for k in keywords):
+            return True
+    return False
+
+
+def rename_endpoint(guid, new_name, capture=False):
+    base = _MMDEVICES_CAPTURE if capture else _MMDEVICES_RENDER
+    path = base + "\\" + guid + "\\Properties"
+    key = winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, path, 0, winreg.KEY_SET_VALUE)
+    winreg.SetValueEx(key, _NAME_PROP, 0, winreg.REG_SZ, new_name)
+    key.Close()
+
+
+def configure_voicemeeter(headphone_name=""):
+    """Auto-configure Voicemeeter: A1=headphones, Strip1=AT Clean→A1, VirtualInput→A1."""
+    import ctypes as _ct
+    dll = r"C:\Program Files (x86)\VB\Voicemeeter\VoicemeeterRemote64.dll"
+    if not os.path.exists(dll):
+        return False, "Voicemeeter no instalado"
+    vm = _ct.WinDLL(dll)
+    ret = vm.VBVMR_Login()
+    if ret not in (0, 1):
+        return False, "No se pudo conectar a Voicemeeter (¿está abierto?)"
+    import time; time.sleep(0.3)
+    try:
+        vtype = _ct.c_long(0)
+        vm.VBVMR_GetVoicemeeterType(_ct.byref(vtype))
+        # Standard=1 → virtual strip index 2; Banana=2 → 3; Potato=3 → 5
+        vstrip = {1: 2, 2: 3, 3: 5}.get(vtype.value, 2)
+
+        def sf(param, val):
+            vm.VBVMR_SetParameterFloat(param.encode(), _ct.c_float(val))
+
+        def ss(param, val):
+            vm.VBVMR_SetParameterStringA(param.encode(), val.encode())
+
+        # A1 output = physical headphone
+        if not headphone_name:
+            skip = {"AT Gaming", "AT Clean", "CABLE", "Voicemeeter", "VB-Audio"}
+            for name, _ in list_render_devices():
+                if not any(k.lower() in name.lower() for k in skip):
+                    headphone_name = name
+                    break
+        if headphone_name:
+            ss("Bus[0].device.wdm", headphone_name)
+
+        # Strip 0 = AT Clean → A1
+        ss("Strip[0].device.wdm", "AT Clean")
+        sf("Strip[0].A1", 1.0)
+        sf("Strip[0].B1", 0.0)
+
+        # Virtual Input (Discord) → A1
+        sf(f"Strip[{vstrip}].A1", 1.0)
+
+        return True, "Voicemeeter configurado"
+    except Exception as e:
+        return False, str(e)
+    finally:
+        vm.VBVMR_Logout()
+
+
+def voicemeeter_configured():
+    """Check if Voicemeeter Strip[0] already has AT Clean assigned."""
+    import ctypes as _ct
+    dll = r"C:\Program Files (x86)\VB\Voicemeeter\VoicemeeterRemote64.dll"
+    if not os.path.exists(dll):
+        return False
+    try:
+        vm = _ct.WinDLL(dll)
+        if vm.VBVMR_Login() not in (0, 1):
+            return False
+        buf = _ct.create_string_buffer(256)
+        vm.VBVMR_GetParameterStringA(b"Strip[0].device.wdm", buf)
+        vm.VBVMR_Logout()
+        return "AT Clean" in buf.value.decode(errors="ignore") or \
+               "CABLE" in buf.value.decode(errors="ignore")
+    except Exception:
+        return False
+
+
+def setup_at_devices():
+    """Rename VB-Cable endpoints to AT Gaming (render) and AT Clean (capture)."""
+    for name, guid in list_render_devices():
+        if any(k in name for k in ["CABLE Input", "AT Gaming"]):
+            rename_endpoint(guid, "AT Gaming", capture=False)
+            break
+    for name, guid in list_capture_devices():
+        if any(k in name for k in ["CABLE Output", "AT Clean"]):
+            rename_endpoint(guid, "AT Clean", capture=True)
+            break
+
+
 def dep_status():
-    """Returns dict of dependency name → (ok: bool, label: str)."""
     apo_ok = os.path.exists(os.path.join(APO_DIR, "EqualizerAPO.dll"))
     reacomp_ok = os.path.exists(
         r"C:\Program Files\VSTPlugins\ReaPlugs\reacomp-standalone.dll")
     reaxcomp_ok = os.path.exists(
         r"C:\Program Files\VSTPlugins\ReaPlugs\reaxcomp-standalone.dll")
+    vm_ok = os.path.exists(VOICEMEETER_EXE)
     return {
-        "Equalizer APO": apo_ok,
-        "ReaPlugs (ReaComp)": reacomp_ok,
-        "ReaPlugs (ReaXcomp)": reaxcomp_ok,
+        "required": {
+            "Equalizer APO": apo_ok,
+            "ReaPlugs (ReaComp)": reacomp_ok,
+            "ReaPlugs (ReaXcomp)": reaxcomp_ok,
+        },
+        "optional": {
+            "Voicemeeter": vm_ok,
+            "VB-Cable (AT Gaming/AT Clean)": vbcable_detected(),
+        },
     }
 
 
 def show_setup_window(on_done):
-    """Show dependency checker window. Calls on_done() when all deps OK."""
     setup = ctk.CTkToplevel()
     setup.title("AudioTweaker — Configuración inicial")
-    setup.geometry("480x640")
+    setup.geometry("500x720")
     setup.resizable(False, False)
     setup.grab_set()
 
-    ctk.CTkLabel(setup, text="🔧 Configuración inicial",
-                 font=ctk.CTkFont(size=22, weight="bold")).pack(pady=20)
-    ctk.CTkLabel(setup, text="Verificando dependencias requeridas...",
-                 font=ctk.CTkFont(size=13), text_color="gray").pack()
+    ctk.CTkLabel(setup, text="🎧 AudioTweaker Setup",
+                 font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(20, 4))
+    ctk.CTkLabel(setup, text="Sigue los pasos en orden. Solo se hace una vez.",
+                 font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(0, 12))
 
-    frame_deps = ctk.CTkFrame(setup)
-    frame_deps.pack(pady=15, padx=20, fill="x")
+    scroll = ctk.CTkScrollableFrame(setup, height=520)
+    scroll.pack(fill="both", expand=True, padx=16, pady=(0, 8))
 
-    status_labels = {}
+    btn_continue = ctk.CTkButton(setup, text="✅ Continuar a AudioTweaker", state="disabled",
+                                 font=ctk.CTkFont(size=14, weight="bold"), height=42,
+                                 command=lambda: [setup.destroy(), on_done()])
+    btn_continue.pack(pady=(0, 16), padx=16, fill="x")
 
-    log_label = ctk.CTkLabel(setup, text=" ", font=ctk.CTkFont(size=12),
-                             text_color="#00cc66", wraplength=440)
-    log_label.pack(pady=(5, 0))
+    def make_step(parent, number, title, subtitle, color="#1e1e2e"):
+        frame = ctk.CTkFrame(parent, fg_color=color, corner_radius=10)
+        frame.pack(fill="x", pady=6, padx=4)
+        header = ctk.CTkFrame(frame, fg_color="transparent")
+        header.pack(fill="x", padx=12, pady=(10, 4))
+        ctk.CTkLabel(header, text=f"  {number}  ", font=ctk.CTkFont(size=13, weight="bold"),
+                     fg_color="#2a2a4a", corner_radius=6, width=32).pack(side="left")
+        ctk.CTkLabel(header, text=f"  {title}",
+                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        if subtitle:
+            ctk.CTkLabel(frame, text=subtitle, font=ctk.CTkFont(size=11),
+                         text_color="gray", wraplength=420).pack(padx=12, pady=(0, 6), anchor="w")
+        return frame
 
-    btn_frame = ctk.CTkFrame(setup, fg_color="transparent")
-    btn_frame.pack(pady=5, padx=20, fill="x")
-
-    btn_continue = ctk.CTkButton(setup, text="✅ Continuar", state="disabled",
-                                 font=ctk.CTkFont(size=14, weight="bold"),
-                                 height=40, command=lambda: [setup.destroy(), on_done()])
-    btn_continue.pack(pady=10, padx=20, fill="x")
+    def add_btn(parent, text, color, cmd, pady=4):
+        b = ctk.CTkButton(parent, text=text, fg_color=color, height=34, command=cmd)
+        b.pack(fill="x", padx=12, pady=(0, pady))
+        return b
 
     def refresh():
         deps = dep_status()
-        for w in frame_deps.winfo_children():
+        req = deps["required"]
+        opt = deps["optional"]
+        all_req_ok = all(req.values())
+        vm_ok = opt["Voicemeeter"]
+        cable_ok = opt["VB-Cable (AT Gaming/AT Clean)"]
+        at_renamed = any("AT Gaming" in n for n, _ in list_render_devices())
+        all_done = all_req_ok and vm_ok and cable_ok and at_renamed
+
+        for w in scroll.winfo_children():
             w.destroy()
-        for w in btn_frame.winfo_children():
-            w.destroy()
 
-        all_ok = all(deps.values())
-        for name, ok in deps.items():
-            row = ctk.CTkFrame(frame_deps, fg_color="transparent")
-            row.pack(fill="x", padx=10, pady=4)
-            icon = "✅" if ok else "❌"
-            color = "green" if ok else "red"
-            ctk.CTkLabel(row, text=f"{icon} {name}",
-                         font=ctk.CTkFont(size=13), text_color=color).pack(side="left")
+        # ── PASO 1: Motor de audio ──────────────────────────────────────────
+        apo_ok = req["Equalizer APO"]
+        rea_ok = req["ReaPlugs (ReaComp)"] and req["ReaPlugs (ReaXcomp)"]
+        p1_ok = apo_ok and rea_ok
+        p1 = make_step(scroll, "1", "Motor de audio",
+                       "Equalizer APO procesa el sonido. ReaPlugs comprime disparos.",
+                       "#1a2a1a" if p1_ok else "#2a1a1a")
+        ctk.CTkLabel(p1, text=f"{'✅' if apo_ok else '❌'} Equalizer APO",
+                     font=ctk.CTkFont(size=12),
+                     text_color="green" if apo_ok else "red").pack(anchor="w", padx=16)
+        ctk.CTkLabel(p1, text=f"{'✅' if rea_ok else '❌'} ReaPlugs VST",
+                     font=ctk.CTkFont(size=12),
+                     text_color="green" if rea_ok else "red").pack(anchor="w", padx=16, pady=(0, 6))
 
-        if not deps["Equalizer APO"]:
-            btn_apo = ctk.CTkButton(btn_frame, text="⬇ Instalar Equalizer APO automáticamente",
-                                    fg_color="#1a5c8a")
-            btn_apo.pack(fill="x", pady=3)
-
+        if not apo_ok:
+            btn_apo = add_btn(p1, "⬇ Instalar Equalizer APO automáticamente", "#1a5c8a",
+                              lambda: None)
             def install_apo():
                 btn_apo.configure(state="disabled")
-
                 def _run():
                     tmp = os.path.join(tempfile.gettempdir(), "EqualizerAPO_setup.exe")
                     try:
-                        def _progress(count, block, total):
-                            if total > 0:
-                                pct = min(100, count * block * 100 // total)
-                                setup.after(0, lambda p=pct: btn_apo.configure(
-                                    text=f"⬇ Descargando APO... {p}%"))
-                        urllib.request.urlretrieve(APO_URL, tmp, reporthook=_progress)
-                        setup.after(0, lambda: btn_apo.configure(
-                            text="🔧 Instalando... acepta el UAC"))
-                        import ctypes, time
-                        ctypes.windll.shell32.ShellExecuteW(
-                            None, "runas", tmp, "/S", None, 1)
+                        def _prog(c, b, t):
+                            if t > 0:
+                                setup.after(0, lambda p=min(100, c*b*100//t):
+                                    btn_apo.configure(text=f"⬇ Descargando APO... {p}%"))
+                        urllib.request.urlretrieve(APO_URL, tmp, reporthook=_prog)
+                        setup.after(0, lambda: btn_apo.configure(text="🔧 Instalando... acepta el UAC"))
+                        import ctypes as _c, time
+                        _c.windll.shell32.ShellExecuteW(None, "runas", tmp, "/S", None, 1)
                         time.sleep(15)
-                        setup.after(0, lambda: btn_apo.configure(text="✅ APO instalado"))
                     except Exception as e:
                         setup.after(0, lambda err=str(e): btn_apo.configure(text=f"❌ {err}"))
                     setup.after(0, refresh)
                 threading.Thread(target=_run, daemon=True).start()
-
             btn_apo.configure(command=install_apo)
 
-        if not deps["ReaPlugs (ReaComp)"] or not deps["ReaPlugs (ReaXcomp)"]:
-            btn_rp = ctk.CTkButton(btn_frame, text="⬇ Instalar ReaPlugs automáticamente",
-                                   fg_color="#1a6b3a")
-            btn_rp.pack(fill="x", pady=3)
-
+        if not rea_ok:
+            btn_rp = add_btn(p1, "⬇ Instalar ReaPlugs automáticamente", "#1a6b3a", lambda: None)
             def install_reaplugs():
                 btn_rp.configure(state="disabled")
-
                 def _run():
                     tmp = os.path.join(tempfile.gettempdir(), "reaplugs_install.exe")
                     try:
-                        def _progress(count, block, total):
-                            if total > 0:
-                                pct = min(100, count * block * 100 // total)
-                                setup.after(0, lambda p=pct: btn_rp.configure(
-                                    text=f"⬇ Descargando ReaPlugs... {p}%"))
-                        urllib.request.urlretrieve(REAPLUGS_URL, tmp, reporthook=_progress)
-                        setup.after(0, lambda: btn_rp.configure(
-                            text="🔧 Instalando... sigue los pasos"))
-                        import ctypes, time
-                        ctypes.windll.shell32.ShellExecuteW(
-                            None, "runas", tmp, None, None, 1)
+                        def _prog(c, b, t):
+                            if t > 0:
+                                setup.after(0, lambda p=min(100, c*b*100//t):
+                                    btn_rp.configure(text=f"⬇ Descargando ReaPlugs... {p}%"))
+                        urllib.request.urlretrieve(REAPLUGS_URL, tmp, reporthook=_prog)
+                        setup.after(0, lambda: btn_rp.configure(text="🔧 Instalando..."))
+                        import ctypes as _c, time
+                        _c.windll.shell32.ShellExecuteW(None, "runas", tmp, None, None, 1)
                         time.sleep(10)
-                        setup.after(0, lambda: btn_rp.configure(text="✅ ReaPlugs instalado"))
                     except Exception as e:
                         setup.after(0, lambda err=str(e): btn_rp.configure(text=f"❌ {err}"))
                     setup.after(0, refresh)
                 threading.Thread(target=_run, daemon=True).start()
-
             btn_rp.configure(command=install_reaplugs)
 
-        ctk.CTkButton(btn_frame, text="🔄 Verificar de nuevo",
-                      command=refresh, fg_color="#555").pack(fill="x", pady=3)
+        # ── PASO 2: Enrutamiento de audio ───────────────────────────────────
+        p2_ok = vm_ok and cable_ok
+        p2 = make_step(scroll, "2", "Enrutamiento de audio",
+                       "VB-Cable crea el canal virtual AT Gaming. Voicemeeter mezcla el juego y Discord.",
+                       "#1a2a1a" if p2_ok else "#222233")
+        ctk.CTkLabel(p2, text=f"{'✅' if cable_ok else '⚪'} VB-Cable (AT Gaming / AT Clean)",
+                     font=ctk.CTkFont(size=12),
+                     text_color="green" if cable_ok else "gray").pack(anchor="w", padx=16)
+        ctk.CTkLabel(p2, text=f"{'✅' if vm_ok else '⚪'} Voicemeeter",
+                     font=ctk.CTkFont(size=12),
+                     text_color="green" if vm_ok else "gray").pack(anchor="w", padx=16, pady=(0, 6))
 
-        btn_continue.configure(state="normal" if all_ok else "disabled")
+        if not cable_ok:
+            btn_cable = add_btn(p2, "🌐 Descargar VB-Cable (gratis)", "#3a5a8a", lambda: None)
+            def open_cable():
+                webbrowser.open(VBCABLE_URL)
+                btn_cable.configure(text="🌐 Descargado — instala y presiona Verificar")
+            btn_cable.configure(command=open_cable)
+
+        if not vm_ok:
+            btn_vm = add_btn(p2, "🌐 Descargar Voicemeeter (gratis)", "#5a3a8a", lambda: None)
+            def open_vm():
+                webbrowser.open(VOICEMEETER_URL)
+                btn_vm.configure(text="🌐 Descargado — instala y presiona Verificar")
+            btn_vm.configure(command=open_vm)
+
+        if cable_ok and vm_ok:
+            ctk.CTkLabel(p2, text="✅ Listo — continúa al paso 3",
+                         font=ctk.CTkFont(size=11), text_color="green").pack(padx=12, pady=(0, 6))
+
+        # ── PASO 3: Reiniciar PC ────────────────────────────────────────────
+        need_reboot = (cable_ok or vm_ok) and not at_renamed
+        p3_ok = at_renamed
+        p3 = make_step(scroll, "3", "Reiniciar PC",
+                       "Necesario después de instalar VB-Cable y Voicemeeter.",
+                       "#1a2a1a" if p3_ok else "#2a2010")
+        if p3_ok:
+            ctk.CTkLabel(p3, text="✅ Reinicio ya realizado",
+                         font=ctk.CTkFont(size=12), text_color="green").pack(padx=16, pady=(0, 6))
+        elif not (cable_ok and vm_ok):
+            ctk.CTkLabel(p3, text="⏳ Completa el paso 2 primero",
+                         font=ctk.CTkFont(size=12), text_color="gray").pack(padx=16, pady=(0, 6))
+        else:
+            add_btn(p3, "🔄 Reiniciar PC ahora", "#7a4a10",
+                    lambda: subprocess.run(["shutdown", "/r", "/t", "5"]))
+            ctk.CTkLabel(p3, text="El PC reiniciará en 5 segundos al presionar el botón.",
+                         font=ctk.CTkFont(size=11), text_color="orange").pack(padx=12, pady=(0, 8))
+
+        # ── PASO 4: Configurar dispositivos ────────────────────────────────
+        p4_ok = at_renamed
+        p4 = make_step(scroll, "4", "Configurar dispositivos",
+                       "Renombra VB-Cable a AT Gaming / AT Clean y configura APO.",
+                       "#1a2a1a" if p4_ok else "#222233")
+        if not (cable_ok and vm_ok):
+            ctk.CTkLabel(p4, text="⏳ Completa los pasos anteriores primero",
+                         font=ctk.CTkFont(size=12), text_color="gray").pack(padx=16, pady=(0, 6))
+        elif not at_renamed:
+            btn_ren = add_btn(p4, "🏷️ Renombrar AT Gaming / AT Clean", "#3a5a8a", lambda: None)
+            def do_rename():
+                try:
+                    setup_at_devices()
+                    btn_ren.configure(text="✅ Renombrado")
+                except PermissionError:
+                    btn_ren.configure(text="❌ Ejecuta como Administrador")
+                setup.after(1500, refresh)
+            btn_ren.configure(command=do_rename)
+        else:
+            ctk.CTkLabel(p4, text="✅ AT Gaming / AT Clean configurados",
+                         font=ctk.CTkFont(size=12), text_color="green").pack(padx=16, pady=(0, 6))
+
+        # ── Verificar / Continuar ───────────────────────────────────────────
+        ctk.CTkButton(scroll, text="🔄 Verificar estado", command=refresh,
+                      fg_color="#444", height=32).pack(fill="x", padx=4, pady=(8, 2))
+
+        btn_continue.configure(state="normal" if all_req_ok else "disabled")
 
     refresh()
 
@@ -400,8 +619,15 @@ def build_config(device_name, game, suppression):
     boost_filters, reacomp_line, reaxcomp_line = SUPPRESSION_LEVELS[suppression]
     all_filters = base_filters + delta["filters"] + boost_filters
 
-    lines = [
-        f"# AudioTweaker: {device_name} + {game} + {suppression} ({source})"]
+    lines = [f"# AudioTweaker: {device_name} + {game} + {suppression} ({source})"]
+    at_guid = find_guid_for_device("AT Gaming")
+    if at_guid:
+        at_name = "AT Gaming"
+        for name, g in list_render_devices():
+            if g == at_guid:
+                at_name = name
+                break
+        lines.append(f"Device: {at_name} {at_guid}")
     lines.append("Preamp: 0.0 dB")
     for i, f in enumerate(all_filters, 1):
         lines.append(f"Filter {i}: {f}")
@@ -426,6 +652,8 @@ def get_dispositivos():
         ("WH-1000XM4", "Sony WH-1000XM4"),
         ("Arctis", "SteelSeries Arctis 7"),
         ("BlackShark", "Razer BlackShark V2"),
+        ("AT Gaming", "AT Gaming"),
+        ("CABLE Input", "AT Gaming"),
     ]
     for d in devices:
         if d["max_output_channels"] > 0:
@@ -522,21 +750,30 @@ def show_autoeq_search():
 
 
 def aplicar_perfil():
-    juego = perfil_var.get()
-    device = dispositivo_var.get()
-    suppression = supresion_var.get()
-    config, source = build_config(device, juego, suppression)
-    try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            f.write(config)
-        status_label.configure(
-            text=f"✅ {juego} · {suppression} ({source})", text_color="green")
-    except FileNotFoundError:
-        status_label.configure(
-            text="⚠️ Equalizer APO no encontrado. ¿Está instalado?", text_color="orange")
-    except PermissionError:
-        status_label.configure(
-            text="❌ Ejecuta la app como Administrador", text_color="red")
+    status_label.configure(text="⏳ Aplicando...", text_color="gray")
+    app.update_idletasks()
+
+    def _run():
+        try:
+            juego = perfil_var.get()
+            device = dispositivo_var.get()
+            suppression = supresion_var.get()
+            config, source = build_config(device, juego, suppression)
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                f.write(config)
+            app.after(0, lambda: status_label.configure(
+                text=f"✅ {juego} · {suppression} ({source})", text_color="green"))
+        except FileNotFoundError:
+            app.after(0, lambda: status_label.configure(
+                text="⚠️ Equalizer APO no encontrado. ¿Está instalado?", text_color="orange"))
+        except PermissionError:
+            app.after(0, lambda: status_label.configure(
+                text="❌ Ejecuta la app como Administrador", text_color="red"))
+        except Exception as e:
+            app.after(0, lambda err=e: status_label.configure(
+                text=f"❌ Error: {err}", text_color="red"))
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def restaurar_defaults():
@@ -561,6 +798,34 @@ def deshabilitar_enhancements():
             text="✅ Audio Enhancements deshabilitados", text_color="green")
     except Exception as e:
         status_label.configure(text=f"❌ Error: {str(e)}", text_color="red")
+
+
+def quitar_apo_dispositivo():
+    device = dispositivo_var.get()
+    guid = find_guid_for_device(device)
+    if not guid:
+        status_label.configure(text=f"❌ No se encontró '{device}' en el registro", text_color="red")
+        return
+    try:
+        deregister_apo_device(guid)
+    except PermissionError:
+        status_label.configure(text="❌ Ejecuta la app como Administrador", text_color="red")
+        return
+    except Exception as e:
+        status_label.configure(text=f"❌ Error: {e}", text_color="red")
+        return
+    status_label.configure(text=f"✅ APO quitado de '{device}'. Reinicia el servicio de audio.", text_color="orange")
+
+    def _restart():
+        try:
+            subprocess.run(["powershell", "-Command",
+                            "Stop-Service audiosrv -Force; Start-Service audiosrv"],
+                           capture_output=True, timeout=15)
+            app.after(0, lambda: status_label.configure(
+                text=f"✅ APO quitado de '{device}'. Listo.", text_color="green"))
+        except Exception:
+            pass
+    threading.Thread(target=_restart, daemon=True).start()
 
 
 def configurar_apo_dispositivo():
@@ -666,7 +931,7 @@ def _show_device_picker(devices, hint):
 # --- GUI ---
 app = ctk.CTk()
 app.title("AudioTweaker")
-app.geometry("500x840")
+app.geometry("500x960")
 app.resizable(False, False)
 
 def _resource(name):
@@ -765,6 +1030,10 @@ ctk.CTkButton(
     command=aplicar_perfil,
 ).pack(pady=15, padx=20, fill="x")
 
+status_label = ctk.CTkLabel(app, text="", font=ctk.CTkFont(size=13),
+                            wraplength=460)
+status_label.pack(pady=(0, 5))
+
 # Tweaks
 frame_tweaks = ctk.CTkFrame(app)
 frame_tweaks.pack(pady=10, padx=20, fill="x")
@@ -776,15 +1045,15 @@ ctk.CTkButton(frame_tweaks, text="📦 Verificar e instalar dependencias",
 ctk.CTkButton(frame_tweaks, text="🔧 Configurar APO para auricular seleccionado",
               command=configurar_apo_dispositivo, fg_color="#1a5c8a"
               ).pack(pady=5, padx=10, fill="x")
+ctk.CTkButton(frame_tweaks, text="🗑️ Quitar APO del auricular seleccionado",
+              command=quitar_apo_dispositivo, fg_color="#6b2a2a"
+              ).pack(pady=5, padx=10, fill="x")
 ctk.CTkButton(frame_tweaks, text="Deshabilitar Audio Enhancements",
               command=deshabilitar_enhancements, fg_color="gray"
               ).pack(pady=5, padx=10, fill="x")
 ctk.CTkButton(frame_tweaks, text="Restaurar Defaults",
               command=restaurar_defaults, fg_color="gray"
               ).pack(pady=(5, 10), padx=10, fill="x")
-
-status_label = ctk.CTkLabel(app, text="", font=ctk.CTkFont(size=13))
-status_label.pack(pady=10)
 
 # Footer
 frame_footer = ctk.CTkFrame(app, fg_color="transparent")
@@ -813,7 +1082,7 @@ ctk.CTkButton(
 ).pack(pady=(6, 0))
 
 # Arranque: checker si faltan deps, directo si todo OK
-if all(dep_status().values()):
+if all(dep_status()["required"].values()):
     _show_main()
 else:
     app.after(100, lambda: show_setup_window(_show_main))
