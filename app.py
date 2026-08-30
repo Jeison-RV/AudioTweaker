@@ -102,7 +102,7 @@ def show_setup_window(on_done):
     """Show dependency checker window. Calls on_done() when all deps OK."""
     setup = ctk.CTkToplevel()
     setup.title("AudioTweaker — Configuración inicial")
-    setup.geometry("480x600")
+    setup.geometry("480x640")
     setup.resizable(False, False)
     setup.grab_set()
 
@@ -660,6 +660,16 @@ app = ctk.CTk()
 app.title("AudioTweaker")
 app.geometry("500x840")
 app.resizable(False, False)
+
+def _resource(name):
+    import sys
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, name)
+
+try:
+    app.iconbitmap(_resource("icon.ico"))
+except Exception:
+    pass
 
 
 def _show_main():
