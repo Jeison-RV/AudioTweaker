@@ -737,6 +737,9 @@ frame_tweaks = ctk.CTkFrame(app)
 frame_tweaks.pack(pady=10, padx=20, fill="x")
 ctk.CTkLabel(frame_tweaks, text="Tweaks de Windows:",
              font=ctk.CTkFont(weight="bold")).pack(pady=(10, 5))
+ctk.CTkButton(frame_tweaks, text="📦 Verificar e instalar dependencias",
+              command=lambda: show_setup_window(lambda: None),
+              fg_color="#444").pack(pady=5, padx=10, fill="x")
 ctk.CTkButton(frame_tweaks, text="🔧 Configurar APO para auricular seleccionado",
               command=configurar_apo_dispositivo, fg_color="#1a5c8a"
               ).pack(pady=5, padx=10, fill="x")
