@@ -17,6 +17,7 @@ ctk.set_default_color_theme("blue")
 APO_DIR = r"C:\Program Files\EqualizerAPO"
 APO_CONFIG = r"C:\Program Files\EqualizerAPO\config\config.txt"
 REAPLUGS_URL = "https://www.reaper.fm/reaplugs/reaplugs236_x64-install.exe"
+APO_URL = "https://downloads.sourceforge.net/project/equalizerapo/1.4.2/EqualizerAPO-x64-1.4.2.exe"
 
 # APO registry automation
 _MMDEVICES_RENDER = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render"
@@ -143,13 +144,23 @@ def show_setup_window(on_done):
                          font=ctk.CTkFont(size=13), text_color=color).pack(side="left")
 
         if not deps["Equalizer APO"]:
-            def open_apo():
-                webbrowser.open(
-                    "https://sourceforge.net/projects/equalizerapo/files/latest/download")
-                log_label.configure(
-                    text="⚠️ Instala Equalizer APO y reinicia el PC. Luego haz click en 'Verificar de nuevo'.")
-            ctk.CTkButton(btn_frame, text="⬇ Descargar Equalizer APO",
-                          command=open_apo, fg_color="#555").pack(fill="x", pady=3)
+            def install_apo():
+                log_label.configure(text="⬇ Descargando Equalizer APO (12 MB)...")
+                btn_continue.configure(state="disabled")
+
+                def _run():
+                    tmp = os.path.join(tempfile.gettempdir(), "EqualizerAPO_setup.exe")
+                    try:
+                        urllib.request.urlretrieve(APO_URL, tmp)
+                        log_label.configure(text="🔧 Instalando Equalizer APO en silencio...")
+                        subprocess.run([tmp, "/S"], check=True)
+                        log_label.configure(text="✅ Equalizer APO instalado.")
+                    except Exception as e:
+                        log_label.configure(text=f"❌ Error: {e}")
+                    refresh()
+                threading.Thread(target=_run, daemon=True).start()
+            ctk.CTkButton(btn_frame, text="⬇ Instalar Equalizer APO automáticamente",
+                          command=install_apo, fg_color="#1a5c8a").pack(fill="x", pady=3)
 
         if not deps["ReaPlugs (ReaComp)"] or not deps["ReaPlugs (ReaXcomp)"]:
             def install_reaplugs():
