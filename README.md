@@ -59,6 +59,8 @@ Estas dos apps crean el canal virtual que separa el juego de Discord:
 2. Se abre la página oficial → descarga **Voicemeeter Standard o Banana**
 3. Instala normalmente
 
+![Voicemeeter menú](docs/voicemeeter-menu.png)
+
 ---
 
 ### Paso 4 — Reiniciar el PC
@@ -75,6 +77,22 @@ Después del reinicio, abre AudioTweaker de nuevo:
 
 1. Click **"🏷️ Renombrar AT Gaming / AT Clean"** — renombra VB-Cable para que sea reconocido por la app
 2. Click **"⚙️ Configurar Voicemeeter"** — configura automáticamente el mezclador de audio
+
+---
+
+### Paso 5b — Configuración de Voicemeeter
+
+**A1 = tus audífonos físicos:**
+
+![Selector A1](docs/voicemeeter-a1.png)
+
+**Vista general configurada:**
+
+![Voicemeeter configurado](docs/voicemeeter-main.png)
+
+- **Strip 1** → AT Clean (VB-Audio Virtual Cable), botón **A** verde
+- **Virtual Input** → botón **A** verde (Discord llega aquí)
+- **A1** → tus audífonos físicos (G435 o el que tengas)
 
 ---
 
