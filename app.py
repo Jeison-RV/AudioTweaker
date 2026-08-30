@@ -115,12 +115,13 @@ def show_setup_window(on_done):
     frame_deps.pack(pady=15, padx=20, fill="x")
 
     status_labels = {}
+
+    log_label = ctk.CTkLabel(setup, text=" ", font=ctk.CTkFont(size=12),
+                             text_color="#00cc66", wraplength=440)
+    log_label.pack(pady=(5, 0))
+
     btn_frame = ctk.CTkFrame(setup, fg_color="transparent")
     btn_frame.pack(pady=5, padx=20, fill="x")
-
-    log_label = ctk.CTkLabel(setup, text="", font=ctk.CTkFont(size=12),
-                             text_color="gray", wraplength=440)
-    log_label.pack(pady=5)
 
     btn_continue = ctk.CTkButton(setup, text="✅ Continuar", state="disabled",
                                  font=ctk.CTkFont(size=14, weight="bold"),
