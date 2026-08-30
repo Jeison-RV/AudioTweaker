@@ -2,7 +2,8 @@
 
 Optimizador de audio para gaming en Windows. Aplica curvas de corrección AutoEQ por auricular, supresión de disparos con compresión VST y boost de pasos — todo con un solo click.
 
-> Desarrollado por **Jeison Ramirez Vallejo** · TikTok [@piranha_gg](https://tiktok.com/@piranha_gg)  
+> Desarrollado por **Jeison Ramirez** 
+> · TikTok [@piranha_gg](https://tiktok.com/@piranha_gg)
 > ☕ [Apoyar con donación](https://paypal.me/Piranha97)
 
 ---
