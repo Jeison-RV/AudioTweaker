@@ -17,7 +17,7 @@ ctk.set_default_color_theme("blue")
 APO_DIR = r"C:\Program Files\EqualizerAPO"
 APO_CONFIG = r"C:\Program Files\EqualizerAPO\config\config.txt"
 REAPLUGS_URL = "https://www.reaper.fm/reaplugs/reaplugs236_x64-install.exe"
-APO_URL = "https://downloads.sourceforge.net/project/equalizerapo/1.4.2/EqualizerAPO-x64-1.4.2.exe"
+APO_URL = "https://github.com/Jeison-RV/AudioTweaker/releases/download/v1.0.0/EqualizerAPO-x64-1.4.2.exe"
 
 # APO registry automation
 _MMDEVICES_RENDER = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render"
