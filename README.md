@@ -98,11 +98,13 @@ Después del reinicio, abre AudioTweaker de nuevo:
 
 ### Paso 6 — Configurar Discord y el juego
 
-**En Discord:**
-- Ajustes → Voz y video → Dispositivo de salida → **Voicemeeter Input**
+**En Discord:** (si lo usas)
+- Ajustes → Voz y video → Dispositivo de salida → **Tus Audifonos**
 
 **En el juego (Warzone, etc.):**
 - Ajustes de audio → Dispositivo de salida → **AT Gaming**
+- Chat De Voz → Dispositivo de salida → **TUS AUDIFONOS** para que salga la voz limpia
+- Microfono → **Tu Microfono**
 
 ---
 
@@ -137,17 +139,6 @@ Discord ──→ Voicemeeter Input ──────────────�
 | 🗑️ Quitar APO del auricular | Desregistra APO (útil para audífonos físicos) |
 | Deshabilitar Audio Enhancements | Desactiva mejoras de Windows que distorsionan el audio |
 | Restaurar Defaults | Vuelve el audio a cero (elimina todos los filtros) |
-
----
-
-## Auriculares compatibles (lista base)
-
-- Logitech G435 Wireless
-- HyperX Cloud II
-- Sony WH-1000XM4
-- SteelSeries Arctis 7
-- Razer BlackShark V2
-- **+ miles más** vía búsqueda integrada en AutoEQ
 
 ---
 
