@@ -931,7 +931,7 @@ def _show_device_picker(devices, hint):
 # --- GUI ---
 app = ctk.CTk()
 app.title("AudioTweaker")
-app.geometry("500x960")
+app.geometry("500x910")
 app.resizable(False, False)
 
 def _resource(name):
@@ -951,7 +951,7 @@ def _show_main():
 
 titulo = ctk.CTkLabel(app, text="🎧 AudioTweaker",
                       font=ctk.CTkFont(size=28, weight="bold"))
-titulo.pack(pady=20)
+titulo.pack(pady=(12, 2))
 
 subtitulo = ctk.CTkLabel(app, text="Optimiza tu audio para gaming",
                          font=ctk.CTkFont(size=14), text_color="gray")
@@ -963,13 +963,13 @@ autoeq_badge.pack(pady=(2, 0))
 
 # Auricular
 frame_dispositivo = ctk.CTkFrame(app)
-frame_dispositivo.pack(pady=15, padx=20, fill="x")
+frame_dispositivo.pack(pady=6, padx=20, fill="x")
 ctk.CTkLabel(frame_dispositivo, text="Auricular:",
-             font=ctk.CTkFont(weight="bold")).pack(pady=(10, 5))
+             font=ctk.CTkFont(weight="bold")).pack(pady=(6, 3))
 dispositivos = get_dispositivos()
 dispositivo_var = ctk.StringVar(value=dispositivos[0])
 ctk.CTkOptionMenu(frame_dispositivo, values=dispositivos,
-                  variable=dispositivo_var, width=300).pack(pady=(0, 4))
+                  variable=dispositivo_var, width=300).pack(pady=(0, 3))
 
 autoeq_label = ctk.CTkLabel(frame_dispositivo, text="AutoEQ: según selección",
                              font=ctk.CTkFont(size=11), text_color="gray")
@@ -979,20 +979,20 @@ ctk.CTkButton(frame_dispositivo, text="🔍 Buscar otro auricular en AutoEQ",
               command=show_autoeq_search, fg_color="transparent",
               border_width=1, border_color="#444",
               font=ctk.CTkFont(size=12), height=28
-              ).pack(pady=(4, 10), padx=20, fill="x")
+              ).pack(pady=(2, 4), padx=20, fill="x")
 
 # Juego + Supresión en mismo frame
 frame_perfil = ctk.CTkFrame(app)
-frame_perfil.pack(pady=10, padx=20, fill="x")
+frame_perfil.pack(pady=4, padx=20, fill="x")
 
 ctk.CTkLabel(frame_perfil, text="Juego:",
-             font=ctk.CTkFont(weight="bold")).pack(pady=(10, 5))
+             font=ctk.CTkFont(weight="bold")).pack(pady=(6, 2))
 perfil_var = ctk.StringVar(value="Warzone")
 ctk.CTkOptionMenu(frame_perfil, values=list(GAME_DELTAS.keys()),
-                  variable=perfil_var, width=300).pack(pady=(0, 5))
+                  variable=perfil_var, width=300).pack(pady=(0, 4))
 
 ctk.CTkLabel(frame_perfil, text="Perfil de combate:",
-             font=ctk.CTkFont(weight="bold")).pack(pady=(5, 5))
+             font=ctk.CTkFont(weight="bold")).pack(pady=(4, 4))
 supresion_var = ctk.StringVar(value="Agresivo")
 
 DESCRIPCIONES = {
@@ -1018,8 +1018,8 @@ def on_supresion_change(*_):
 supresion_var.trace_add("write", on_supresion_change)
 
 ctk.CTkOptionMenu(frame_perfil, values=list(SUPPRESSION_LEVELS.keys()),
-                  variable=supresion_var, width=300).pack(pady=(0, 6))
-desc_label.pack(pady=(0, 10), padx=10, anchor="w")
+                  variable=supresion_var, width=300).pack(pady=(0, 4))
+desc_label.pack(pady=(0, 6), padx=10, anchor="w")
 
 # Botón principal
 ctk.CTkButton(
@@ -1028,15 +1028,15 @@ ctk.CTkButton(
     font=ctk.CTkFont(size=16, weight="bold"),
     height=50,
     command=aplicar_perfil,
-).pack(pady=15, padx=20, fill="x")
+).pack(pady=8, padx=20, fill="x")
 
 status_label = ctk.CTkLabel(app, text="", font=ctk.CTkFont(size=13),
                             wraplength=460)
-status_label.pack(pady=(0, 5))
+status_label.pack(pady=(0, 4))
 
 # Tweaks
 frame_tweaks = ctk.CTkFrame(app)
-frame_tweaks.pack(pady=10, padx=20, fill="x")
+frame_tweaks.pack(pady=6, padx=20, fill="x")
 ctk.CTkLabel(frame_tweaks, text="Tweaks de Windows:",
              font=ctk.CTkFont(weight="bold")).pack(pady=(10, 5))
 ctk.CTkButton(frame_tweaks, text="📦 Verificar e instalar dependencias",
